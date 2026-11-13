@@ -70,7 +70,7 @@ ansible-playbook site.yml                  # deploy
 
 Open `http://<WEB_NODE_PUBLIC_IP>` in a browser:
 
-![Deployed page](screenshots/browser-page.png)
+![Deployed page](screenshots/Deployment_success.jpg)
 
 ## Troubleshooting
 
