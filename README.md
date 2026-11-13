@@ -68,7 +68,8 @@ ansible-playbook site.yml                  # deploy
 
 ## Verification
 
-Open `http://<WEB_NODE_PUBLIC_IP>` in a browser:
+Open `http://3.90.12.161/` in a browser: 
+However the above will be unable as EC2 instance will be deleted.
 
 ![Deployed page](screenshots/Deployment_success.jpg)
 
