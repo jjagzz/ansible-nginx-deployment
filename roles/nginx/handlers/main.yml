@@ -1,0 +1,11 @@
+---
+- name: Validate Nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  listen: Restart nginx
+
+- name: Restart Nginx service
+  ansible.builtin.systemd:
+    name: "{{ nginx_service }}"
+    state: restarted
+  listen: Restart nginx

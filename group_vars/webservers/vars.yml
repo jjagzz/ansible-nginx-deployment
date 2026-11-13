@@ -1,0 +1,15 @@
+---
+# Connection
+ansible_user: "{{ vault_ansible_user }}"
+ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+
+# Nginx settings for this environment
+nginx_web_root: /var/www/html
+nginx_user: www-data
+nginx_port: 80
+site_title: "Deployed with Ansible"
+site_message: "Updated via a variable change, no playbook edits."
+
+# Secrets are referenced here, stored encrypted in vault.yml
+nginx_admin_user: admin
+nginx_admin_password: "{{ vault_nginx_admin_password }}"
