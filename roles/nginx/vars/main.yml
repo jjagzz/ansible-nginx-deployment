@@ -1,0 +1,5 @@
+---
+nginx_package: nginx
+nginx_service: nginx
+nginx_site_conf: /etc/nginx/sites-available/default
+nginx_htpasswd_file: /etc/nginx/.htpasswd

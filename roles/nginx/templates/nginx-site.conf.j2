@@ -1,0 +1,19 @@
+# Managed by Ansible - do not edit by hand
+server {
+    listen {{ nginx_port }} default_server;
+    listen [::]:{{ nginx_port }} default_server;
+    server_name {{ nginx_server_name }};
+
+    root {{ nginx_web_root }};
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location /nginx_status {
+        stub_status;
+        auth_basic "Restricted";
+        auth_basic_user_file {{ nginx_htpasswd_file }};
+    }
+}

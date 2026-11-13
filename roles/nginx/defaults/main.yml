@@ -1,0 +1,9 @@
+---
+# Safe defaults; override in group_vars/host_vars/-e
+nginx_port: 80
+nginx_server_name: "_"
+nginx_web_root: /var/www/html
+nginx_user: www-data
+nginx_admin_user: admin
+site_title: "Deployed with Ansible"
+site_message: "This page was deployed to Nginx on AWS EC2 by an Ansible role."

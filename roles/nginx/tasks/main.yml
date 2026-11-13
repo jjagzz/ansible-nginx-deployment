@@ -1,0 +1,97 @@
+---
+- name: Check required secrets are provided
+  ansible.builtin.assert:
+    that:
+      - nginx_admin_password is defined
+    fail_msg: "nginx_admin_password is not set. Check group_vars/webservers/vault.yml"
+    quiet: true
+
+- name: Install and configure Nginx
+  block:
+    - name: Update apt cache and upgrade all packages
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+        cache_valid_time: 3600
+      register: apt_upgrade
+      retries: 5
+      delay: 15
+      until: apt_upgrade is succeeded   # retries if dpkg is locked right after boot
+
+    - name: Install Nginx
+      ansible.builtin.apt:
+        name: "{{ nginx_package }}"
+        state: present
+      register: nginx_install
+      retries: 5
+      delay: 15
+      until: nginx_install is succeeded
+
+    - name: Ensure web root exists
+      ansible.builtin.file:
+        path: "{{ nginx_web_root }}"
+        state: directory
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_user }}"
+        mode: "0755"
+
+    - name: Deploy Nginx site configuration
+      ansible.builtin.template:
+        src: nginx-site.conf.j2
+        dest: "{{ nginx_site_conf }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart nginx
+
+    - name: Deploy htpasswd file for protected status page
+      ansible.builtin.template:
+        src: htpasswd.j2
+        dest: "{{ nginx_htpasswd_file }}"
+        owner: root
+        group: "{{ nginx_user }}"
+        mode: "0640"
+      no_log: true            # keeps the secret out of the output
+      notify: Restart nginx
+
+    - name: Deploy custom HTML page
+      ansible.builtin.template:
+        src: index.html.j2
+        dest: "{{ nginx_web_root }}/index.html"
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_user }}"
+        mode: "0644"
+      notify: Restart nginx
+
+    - name: Start and enable Nginx
+      ansible.builtin.systemd:
+        name: "{{ nginx_service }}"
+        state: started
+        enabled: true
+
+    - name: Flush handlers so changes apply before verification
+      ansible.builtin.meta: flush_handlers
+
+    - name: Verify the site returns HTTP 200
+      ansible.builtin.uri:
+        url: "http://localhost:{{ nginx_port }}/"
+        status_code: 200
+
+    - name: Verify status page rejects anonymous requests
+      ansible.builtin.uri:
+        url: "http://localhost:{{ nginx_port }}/nginx_status"
+        status_code: 401
+
+    - name: Verify status page accepts the vault-managed credentials
+      ansible.builtin.uri:
+        url: "http://localhost:{{ nginx_port }}/nginx_status"
+        url_username: "{{ nginx_admin_user }}"
+        url_password: "{{ nginx_admin_password }}"
+        force_basic_auth: true
+        status_code: 200
+      no_log: true
+
+  rescue:
+    - name: Report failure clearly
+      ansible.builtin.fail:
+        msg: "Nginx role failed on {{ inventory_hostname }}: {{ ansible_failed_result.msg | default('see task output above') }}"

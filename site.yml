@@ -2,34 +2,5 @@
 - name: Deploy Nginx web server
   hosts: webservers
   become: true
-
-  tasks:
-    - name: Update apt cache and upgrade all packages
-      ansible.builtin.apt:
-        update_cache: true
-        upgrade: dist
-        cache_valid_time: 3600
-
-    - name: Install Nginx
-      ansible.builtin.apt:
-        name: nginx
-        state: present
-
-    - name: Start and enable Nginx
-      ansible.builtin.systemd:
-        name: nginx
-        state: started
-        enabled: true
-
-    - name: Deploy custom HTML page
-      ansible.builtin.copy:
-        src: files/index.html
-        dest: /var/www/html/index.html
-        owner: www-data
-        group: www-data
-        mode: "0644"
-
-    - name: Verify Nginx responds locally
-      ansible.builtin.uri:
-        url: http://localhost
-        status_code: 200
+  roles:
+    - nginx
