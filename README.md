@@ -23,11 +23,20 @@ Local PC ──SSH (.pem)──► Control node (Ubuntu 24.04 EC2, Ansible)
 
 ```
 .
-├── ansible.cfg        # Ansible defaults (inventory path, host key checking)
-├── inventory.ini      # Inventory with the web node's public IP
-├── site.yml           # Playbook
-├── files/index.html   # Custom landing page
-├── screenshots/       # Proof of deployment
+├── ansible.cfg                  # defaults: inventory, roles path, vault password file
+├── inventory.ini                # web node public IP
+├── site.yml                     # thin playbook that applies the nginx role
+├── group_vars/webservers/
+│   ├── vars.yml                 # environment settings (paths, user, port, content)
+│   └── vault.yml                # ENCRYPTED secrets (Ansible Vault)
+├── roles/nginx/
+│   ├── defaults/main.yml        # overridable defaults
+│   ├── vars/main.yml            # internal constants (package, service, paths)
+│   ├── tasks/main.yml           # install, configure, start, verify
+│   ├── handlers/main.yml        # validate config, then restart Nginx
+│   ├── templates/               # nginx site config, htpasswd, index.html
+│   └── meta/main.yml
+├── screenshots/
 └── README.md
 ```
 
@@ -46,17 +55,57 @@ Local PC ──SSH (.pem)──► Control node (Ubuntu 24.04 EC2, Ansible)
 6. **Inventory:** `inventory.ini` lists the web node's public IP, SSH user
    and private key path.
 
-## Playbook (`site.yml`)
+## Playbook and Role
+
+`site.yml` applies the reusable `nginx` role to the `webservers` group.
 
 | Task | Module | Purpose |
 |------|--------|---------|
-| Update packages | `ansible.builtin.apt` | Refresh cache and upgrade packages |
-| Install Nginx | `ansible.builtin.apt` | Install the web server |
-| Start and enable Nginx | `ansible.builtin.systemd` | Run now and on every boot |
-| Deploy HTML | `ansible.builtin.copy` | Copy `files/index.html` to `/var/www/html/` |
-| Verify | `ansible.builtin.uri` | Confirm HTTP 200 from localhost |
+| Assert secrets exist | `assert` | Fail early if the vault variable is missing |
+| Update packages | `apt` | Refresh cache and upgrade, with retries for dpkg lock |
+| Install Nginx | `apt` | Install the web server |
+| Deploy config, htpasswd, HTML | `template` | Render Jinja2 templates; each change notifies the handler |
+| Start and enable | `systemd` | Run now and on boot |
+| Verify | `uri` | 200 on `/`, 401 without credentials and 200 with credentials on `/nginx_status` |
+
+**Handlers:** changes to the config, htpasswd or HTML notify the `Restart nginx`
+topic. The configuration is validated with `nginx -t` first and Nginx restarts
+only if validation passes. Unchanged runs trigger no restart.
+
+**Error handling:** tasks are wrapped in `block/rescue`, apt tasks use
+`retries/until`, and secret-handling tasks use `no_log`.
 
 The playbook is idempotent: a second run reports `changed=0`.
+
+## Variables
+
+| Variable | Defined in | Default | Purpose |
+|----------|-----------|---------|---------|
+| `nginx_web_root` | defaults, group_vars | `/var/www/html` | Document root |
+| `nginx_user` | defaults, group_vars | `www-data` | Owner of web files |
+| `nginx_port` | defaults, group_vars | `80` | Listen port |
+| `nginx_server_name` | defaults | `_` | Server name |
+| `site_title`, `site_message` | defaults, group_vars | see file | Page content |
+| `nginx_admin_user` | defaults, group_vars | `admin` | Status page user |
+| `nginx_admin_password` | group_vars → vault | none | Status page password |
+| `ansible_user` | group_vars → vault | none | SSH user |
+
+Precedence: role `defaults` < `group_vars` < command-line `-e`.
+
+## Secrets with Ansible Vault
+
+Sensitive values live in `group_vars/webservers/vault.yml`, encrypted with
+AES-256. Plain variables reference them (for example
+`nginx_admin_password: "{{ vault_nginx_admin_password }}"`).
+
+```bash
+ansible-vault edit group_vars/webservers/vault.yml    # edit secrets
+ansible-vault view group_vars/webservers/vault.yml    # read secrets
+ansible-playbook site.yml --ask-vault-pass            # or use .vault_pass
+```
+
+`.vault_pass` is git-ignored. Assessment vault password: `<throwaway-password>`
+(for demonstration only).
 
 ## How to Run
 
